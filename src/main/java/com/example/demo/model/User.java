@@ -27,4 +27,13 @@ public class User {
 
     @Column(name = "registered_at")
     private Timestamp registeredAt;
+
+    @Override
+    public String toString() {
+        return "First Name : " + this.getFirstName() +"\n" +
+                "Last Name  : " + this.getLastName() + "\n" +
+                "Username   : " + this.getUserName() + "\n" +
+                "Registered : " + this.getRegisteredAt() + "\n" +
+                "Chat ID  : " + this.getChatId() + "\n";
+    }
 }

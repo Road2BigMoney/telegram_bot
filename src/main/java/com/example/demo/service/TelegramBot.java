@@ -99,6 +99,22 @@ public class TelegramBot extends TelegramLongPollingBot {
                         register(chatId);
                         break;
 
+                    case "/medjid" :
+
+                        prepareAndSendMessage(625329352, "Получай мусорное сообщение");
+                        prepareAndSendMessage(chatId,"Мусор мажиду отправлен");
+                        break;
+                    case "/ramazan4ik" :
+                        prepareAndSendMessage(1098416218, "Получай мусорное сообщение");
+                        prepareAndSendMessage(chatId,"Мусор Рамазанчику отправлен");
+                        break;
+                    case "/my_data" :
+                        User user = userRepository.findById(chatId).get();
+                        String textData = user.toString();
+                        prepareAndSendMessage(chatId, textData);
+                        break;
+
+
                     default:
                         try {
                             ip = IPService.getIP(messageText, ipModel);
@@ -233,6 +249,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setText(textToSend);
         executeMessage(message);
     }
+
+
 
     private void executeEditMessageText(String text, long chatId, long messageId){
         EditMessageText message = new EditMessageText();
