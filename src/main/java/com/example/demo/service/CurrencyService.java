@@ -11,7 +11,7 @@ import java.text.SimpleDateFormat;
 import java.util.Scanner;
 
 public class CurrencyService {
-    public static String getCurrencyRate(String message, CurrencyModel model) throws IOException, ParseException {
+    public static String getCurrencyRate(String message) throws IOException, ParseException {
         URL url = new URL("https://www.nbrb.by/api/exrates/rates/" + message + "?parammode=2");
         Scanner scanner = new Scanner((InputStream) url.getContent());
         String result = "";
@@ -19,7 +19,7 @@ public class CurrencyService {
             result +=scanner.nextLine();
         }
         JSONObject object = new JSONObject(result);
-
+        CurrencyModel model = new CurrencyModel();
         model.setCur_ID(object.getInt("Cur_ID"));
         model.setDate(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").parse(object.getString("Date")));
         model.setCur_Abbreviation(object.getString("Cur_Abbreviation"));

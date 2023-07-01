@@ -25,6 +25,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.io.IOException;
 import java.sql.Timestamp;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,8 +66,8 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
     @Override
     public void onUpdateReceived(Update update) {
-        IPModel ipModel = new IPModel();
-        CurrencyModel currencyModel = new CurrencyModel();
+
+
         String ip = "";
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
@@ -89,9 +90,19 @@ public class TelegramBot extends TelegramLongPollingBot {
                         startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
                         break;
 
+
                     case "/help":
 
                         prepareAndSendMessage(chatId, HELP_TEXT);
+                        break;
+                    case "/currency" :
+                        try {
+                            sendCurrency(chatId);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        } catch (ParseException e) {
+                            throw new RuntimeException(e);
+                        }
                         break;
 
                     case "/register":
@@ -116,11 +127,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
 
                     default:
-                        try {
-                            ip = IPService.getIP(messageText, ipModel);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
+
                         prepareAndSendMessage(chatId, "You ip is : " + ip);
 
                 }
@@ -174,6 +181,32 @@ public class TelegramBot extends TelegramLongPollingBot {
             userRepository.save(user);
             log.info("user saved: " + user);
         }
+    }
+    private void sendCurrency(long chatId) throws IOException, ParseException {
+        var sendMessage = new SendMessage();
+        sendMessage.setChatId(chatId);
+        sendMessage.setText("Выбери валюту конвертирования." + "\n" +
+                "Конвертация пока с беларусским рублем.");
+        var inlineKeyboardMarkup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
+        List<InlineKeyboardButton> rowInLine = new ArrayList<>();
+        var USDButton = new InlineKeyboardButton();
+        USDButton.setText("USD");
+        USDButton.setCallbackData(CurrencyService.getCurrencyRate("USD"));
+        var EURButton = new InlineKeyboardButton();
+        EURButton.setText("EUR");
+        EURButton.setCallbackData(CurrencyService.getCurrencyRate("EUR"));
+        var RUBButton = new InlineKeyboardButton();
+        RUBButton.setText("RUB");
+        RUBButton.setCallbackData(CurrencyService.getCurrencyRate("RUB"));
+        rowInLine.add(USDButton);
+        rowInLine.add(EURButton);
+        rowInLine.add(RUBButton);
+        rowsInLine.add(rowInLine);
+        inlineKeyboardMarkup.setKeyboard(rowsInLine);
+        sendMessage.setReplyMarkup(inlineKeyboardMarkup);
+        executeMessage(sendMessage);
+
     }
     private void register(long chatId) {
 

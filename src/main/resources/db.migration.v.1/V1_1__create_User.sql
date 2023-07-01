@@ -1,3 +1,4 @@
+CREATE SCHEMA if NOT EXISTS tg_bot;
 CREATE TABLE if NOT EXISTS userTG
 (
     chat_id bigserial not null primary key,
