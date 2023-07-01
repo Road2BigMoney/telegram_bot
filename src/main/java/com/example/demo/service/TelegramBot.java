@@ -28,6 +28,7 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @Slf4j
@@ -46,6 +47,9 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     static final String YES_BUTTON = "YES_BUTTON";
     static final String NO_BUTTON = "NO_BUTTON";
+    static final String EUR_BUTTON = "EUR_CUR";
+    static final String USD_BUTTON = "USD_CUR";
+    static final String RUB_BUTTON = "RUB_CUR";
 
     static final String ERROR_TEXT = "Error occurred: ";
 
@@ -58,6 +62,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         listofCommands.add(new BotCommand("/delete_data", "delete my data"));
         listofCommands.add(new BotCommand("/help", "info how to use this bot"));
         listofCommands.add(new BotCommand("/settings", "set your preferences"));
+        listofCommands.add(new BotCommand("/currency", "currency of BYN"));
         try {
             this.execute(new SetMyCommands(listofCommands, new BotCommandScopeDefault(), null));
         } catch (TelegramApiException e) {
@@ -72,6 +77,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
+            String username = update.getMessage().getFrom().getUserName();
 
             if(messageText.contains("/send") && botConfig.getOwnerId() == chatId) {
                 var textToSend = EmojiParser.parseToUnicode(messageText.substring(messageText.indexOf(" ")));
@@ -109,6 +115,10 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                         register(chatId);
                         break;
+                    case "/delete_data" :
+                        userRepository.deleteById(chatId);
+                        prepareAndSendMessage(chatId,"Ваши данные удалены с бота");
+                        break;
 
                     case "/medjid" :
 
@@ -119,9 +129,18 @@ public class TelegramBot extends TelegramLongPollingBot {
                         prepareAndSendMessage(1098416218, "Получай мусорное сообщение");
                         prepareAndSendMessage(chatId,"Мусор Рамазанчику отправлен");
                         break;
+                    case "/saga" :
+                        prepareAndSendMessage(257906812, "Учи жаву и накрой стол на покер");
+                        prepareAndSendMessage(chatId,"Мусор Саге отправлен");
+                        break;
                     case "/my_data" :
-                        User user = userRepository.findById(chatId).get();
-                        String textData = user.toString();
+                        Optional<User> user = userRepository.findUserByUserName(username);
+                        String textData = "";
+                        if (user.isEmpty()) {
+                            textData = "Нет ваших данных, введите /start чтобы их добавить";
+                        } else {
+                            textData = user.get().toString();
+                        }
                         prepareAndSendMessage(chatId, textData);
                         break;
 
@@ -136,15 +155,27 @@ public class TelegramBot extends TelegramLongPollingBot {
             String callbackData = update.getCallbackQuery().getData();
             long messageId = update.getCallbackQuery().getMessage().getMessageId();
             long chatId = update.getCallbackQuery().getMessage().getChatId();
+            String text = "";
 
             if(callbackData.equals(YES_BUTTON)){
-                String text = "You pressed YES button";
-                executeEditMessageText(text, chatId, messageId);
+                text = "You pressed YES button";
             }
             else if(callbackData.equals(NO_BUTTON)){
-                String text = "You pressed NO button";
-                executeEditMessageText(text, chatId, messageId);
+                text = "You pressed NO button";
             }
+
+            if (callbackData.endsWith("_CUR")) {
+                try {
+                    text = CurrencyService.getCurrencyRate(callbackData.substring(0,3));
+
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            executeEditMessageText(text,chatId,messageId);
+
         }
     }
 
@@ -184,7 +215,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
     private void sendCurrency(long chatId) throws IOException, ParseException {
         var sendMessage = new SendMessage();
-        sendMessage.setChatId(chatId);
+        sendMessage.setChatId(String.valueOf(chatId));
         sendMessage.setText("Выбери валюту конвертирования." + "\n" +
                 "Конвертация пока с беларусским рублем.");
         var inlineKeyboardMarkup = new InlineKeyboardMarkup();
@@ -192,13 +223,13 @@ public class TelegramBot extends TelegramLongPollingBot {
         List<InlineKeyboardButton> rowInLine = new ArrayList<>();
         var USDButton = new InlineKeyboardButton();
         USDButton.setText("USD");
-        USDButton.setCallbackData(CurrencyService.getCurrencyRate("USD"));
+        USDButton.setCallbackData(USD_BUTTON);
         var EURButton = new InlineKeyboardButton();
         EURButton.setText("EUR");
-        EURButton.setCallbackData(CurrencyService.getCurrencyRate("EUR"));
+        EURButton.setCallbackData(EUR_BUTTON);
         var RUBButton = new InlineKeyboardButton();
         RUBButton.setText("RUB");
-        RUBButton.setCallbackData(CurrencyService.getCurrencyRate("RUB"));
+        RUBButton.setCallbackData(RUB_BUTTON);
         rowInLine.add(USDButton);
         rowInLine.add(EURButton);
         rowInLine.add(RUBButton);
