@@ -133,7 +133,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                         prepareAndSendMessage(chatId, textData);
                         break;
                     case String s when s.startsWith("/sendUmor"):
-                        registerOrUpdateUser(update.getMessage());
+                        //registerOrUpdateUser(update.getMessage());
                         try {
                             String senderName = update.getMessage().getFrom().getUserName();
                             String[] messageArray = messageText.split(" ");
@@ -200,13 +200,16 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void registerOrUpdateUser(Message msg) {
         var chatId = msg.getChatId();
         boolean willBeUpdate = false;
-        Optional<User> oldData = userService.findById(msg.getFrom().getId());
-        if (oldData.isEmpty()) {
+        //       Optional<User> oldData = userService.findById(msg.getFrom().getId());
             userService.registerOrUpdateUser(msg);
             prepareAndSendMessage(chatId, "Добро пожаловать в жабагадюшник! ");
-        } else if (!oldData.get().equals(userService.registerOrUpdateUser(msg))){
-            prepareAndSendMessage(chatId, " Ваши данные обновленны! ");
-        }
+
+//        if (oldData.isEmpty()) {
+//            userService.registerOrUpdateUser(msg);
+//            prepareAndSendMessage(chatId, "Добро пожаловать в жабагадюшник! ");
+//        } else if (!oldData.get().equals(userService.registerOrUpdateUser(msg))){
+//            prepareAndSendMessage(chatId, " Ваши данные обновленны! ");
+//        }
 
     }
     private void sendCurrency(long chatId) throws IOException, ParseException {
