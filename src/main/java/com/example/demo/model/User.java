@@ -28,6 +28,9 @@ public class User {
     @Column(name = "registered_at")
     private Timestamp registeredAt;
 
+    @Column(name = "umor_point", columnDefinition = "BIGINT default 18")
+    private Long umorPoint;
+
 
     @Override
     public String toString() {
@@ -35,6 +38,6 @@ public class User {
                 "Last Name  : " + this.getLastName() + "\n" +
                 "Username   : " + this.getUserName() + "\n" +
                 "Registered : " + this.getRegisteredAt() + "\n" +
-                "Chat ID  : " + this.getChatId() + "\n";
+                "Очков юмора : " + this.getUmorPoint();
     }
 }

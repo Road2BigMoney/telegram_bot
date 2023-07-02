@@ -1,0 +1,3 @@
+
+ALTER TABLE IF EXISTS tg_bot.userTG
+ADD umor_point BIGSERIAL DEFAULT 10000;

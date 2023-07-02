@@ -1,11 +1,9 @@
-package com.example.demo.service;
+package com.example.demo.botEndpoints;
 
-import com.vdurmont.emoji.EmojiParser;
+import com.example.demo.service.CurrencyService;
+import com.example.demo.service.UserServiceImpl;
 import com.example.demo.config.BotConfig;
-import com.example.demo.model.CurrencyModel;
-import com.example.demo.model.IPModel;
 import com.example.demo.model.User;
-import com.example.demo.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -24,7 +22,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.io.IOException;
-import java.sql.Timestamp;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,14 +32,14 @@ import java.util.Optional;
 public class TelegramBot extends TelegramLongPollingBot {
 
     @Autowired
-    private UserRepository userRepository;
+    private UserServiceImpl userService;
     private final BotConfig botConfig;
 
 
     static final String HELP_TEXT = "This bot is created to demonstrate Spring capabilities.\n\n" +
             "You can execute commands from the main menu on the left or by typing a command:\n\n" +
             "Type /start to see a welcome message\n\n" +
-            "Type /mydata to see data stored about yourself\n\n" +
+            "Type /my_data to see data stored about yourself\n\n" +
             "Type /help to see this message again";
 
     static final String YES_BUTTON = "YES_BUTTON";
@@ -52,19 +49,21 @@ public class TelegramBot extends TelegramLongPollingBot {
     static final String RUB_BUTTON = "RUB_CUR";
 
     static final String ERROR_TEXT = "Error occurred: ";
+    private List<BotCommand> listofCommands = new ArrayList<>();
 
 
     public TelegramBot(BotConfig botConfig){
         this.botConfig = botConfig;
-        List<BotCommand> listofCommands = new ArrayList<>();
+
         listofCommands.add(new BotCommand("/start", "get a welcome message"));
         listofCommands.add(new BotCommand("/my_data", "get your data stored"));
         listofCommands.add(new BotCommand("/delete_data", "delete my data"));
         listofCommands.add(new BotCommand("/help", "info how to use this bot"));
-        listofCommands.add(new BotCommand("/settings", "set your preferences"));
-        listofCommands.add(new BotCommand("/currency", "currency of BYN"));
+        listofCommands.add(new BotCommand("/sendUmor ", "Отправить юмора пример сообщения: /sendUmor username 150"));
+
         try {
             this.execute(new SetMyCommands(listofCommands, new BotCommandScopeDefault(), null));
+            //this.execute(new DeleteMyCommands());
         } catch (TelegramApiException e) {
             log.error("Error setting bot's command list: " + e.getMessage());
         }
@@ -79,21 +78,11 @@ public class TelegramBot extends TelegramLongPollingBot {
             long chatId = update.getMessage().getChatId();
             String username = update.getMessage().getFrom().getUserName();
 
-            if(messageText.contains("/send") && botConfig.getOwnerId() == chatId) {
-                var textToSend = EmojiParser.parseToUnicode(messageText.substring(messageText.indexOf(" ")));
-                var users = userRepository.findAll();
-                for (User user: users){
-                    prepareAndSendMessage(user.getChatId(), textToSend);
-                }
-            }
-
-            else {
-
                 switch (messageText) {
                     case "/start":
 
-                        registerUser(update.getMessage());
-                        startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
+                        registerOrUpdateUser(update.getMessage());
+                       // startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
                         break;
 
 
@@ -116,7 +105,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                         register(chatId);
                         break;
                     case "/delete_data" :
-                        userRepository.deleteById(chatId);
+                        userService.deleteById(chatId);
                         prepareAndSendMessage(chatId,"Ваши данные удалены с бота");
                         break;
 
@@ -134,23 +123,37 @@ public class TelegramBot extends TelegramLongPollingBot {
                         prepareAndSendMessage(chatId,"Мусор Саге отправлен");
                         break;
                     case "/my_data" :
-                        Optional<User> user = userRepository.findUserByUserName(username);
+                        User user = userService.findUserByUserName(username);
                         String textData = "";
-                        if (user.isEmpty()) {
+                        if (user == null) {
                             textData = "Нет ваших данных, введите /start чтобы их добавить";
                         } else {
-                            textData = user.get().toString();
+                            textData = user.toString();
                         }
                         prepareAndSendMessage(chatId, textData);
                         break;
+                    case String s when s.startsWith("/sendUmor"):
+                        registerOrUpdateUser(update.getMessage());
+                        try {
+                            String senderName = update.getMessage().getFrom().getUserName();
+                            String[] messageArray = messageText.split(" ");
+                            String recipient = messageArray[1];
+                            long amount = Long.parseLong(messageArray[2]);
+                            List<User> participants = userService.sendUmorPoint(senderName, recipient, amount);
+                            prepareAndSendMessage(chatId, participants.get(0).getFirstName() + " отправил " + participants.get(1).getFirstName() + " " + amount +" юмора." );
+                            prepareAndSendMessage(participants.get(0).getChatId(), "У вас списалось " + amount + " юмора в пользу " + participants.get(1).getUserName());
+                            prepareAndSendMessage(participants.get(1).getChatId(), "Вам поступило " + amount + " юмора от " + participants.get(0).getUserName());
+                        } catch (RuntimeException e) {
+                            log.error(e.getMessage());
+                            prepareAndSendMessage(chatId, "Не удалось отправить юмор");
+                        }
 
-
+                        break;
                     default:
-
-                        prepareAndSendMessage(chatId, "You ip is : " + ip);
+                        break;
 
                 }
-            }
+
         } else if (update.hasCallbackQuery()) {
             String callbackData = update.getCallbackQuery().getData();
             long messageId = update.getCallbackQuery().getMessage().getMessageId();
@@ -194,24 +197,17 @@ public class TelegramBot extends TelegramLongPollingBot {
         sendMessage(chatId, answer);
     }
 
-    private void registerUser(Message msg) {
-
-        if(userRepository.findById(msg.getChatId()).isEmpty()){
-
-            var chatId = msg.getChatId();
-            var chat = msg.getChat();
-
-            User user = new User();
-
-            user.setChatId(chatId);
-            user.setFirstName(chat.getFirstName());
-            user.setLastName(chat.getLastName());
-            user.setUserName(chat.getUserName());
-            user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
-
-            userRepository.save(user);
-            log.info("user saved: " + user);
+    private void registerOrUpdateUser(Message msg) {
+        var chatId = msg.getChatId();
+        boolean willBeUpdate = false;
+        Optional<User> oldData = userService.findById(msg.getFrom().getId());
+        if (oldData.isEmpty()) {
+            userService.registerOrUpdateUser(msg);
+            prepareAndSendMessage(chatId, "Добро пожаловать в жабагадюшник! ");
+        } else if (!oldData.get().equals(userService.registerOrUpdateUser(msg))){
+            prepareAndSendMessage(chatId, " Ваши данные обновленны! ");
         }
+
     }
     private void sendCurrency(long chatId) throws IOException, ParseException {
         var sendMessage = new SendMessage();
