@@ -10,9 +10,10 @@ import java.sql.Timestamp;
 
 @Entity(name = "userTG")
 @Data
-public class User {
-
+public class User implements Comparable {
     @Id
+    private Long id;
+
     @Column(name = "chat_id")
     private Long chatId;
 
@@ -28,7 +29,7 @@ public class User {
     @Column(name = "registered_at")
     private Timestamp registeredAt;
 
-    @Column(name = "umor_point", columnDefinition = "BIGINT default 18")
+    @Column(name = "umor_point")
     private Long umorPoint;
 
 
@@ -39,5 +40,14 @@ public class User {
                 "Username   : " + this.getUserName() + "\n" +
                 "Registered : " + this.getRegisteredAt() + "\n" +
                 "Очков юмора : " + this.getUmorPoint();
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        if(o == null){
+            return -1;
+        }
+        User user = (User)o;
+        return (int)(umorPoint - user.umorPoint);
     }
 }

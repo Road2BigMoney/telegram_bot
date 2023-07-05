@@ -46,7 +46,7 @@ public class UserServiceImpl {
 
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public User registerOrUpdateUser(Message msg) {
         var chatId = msg.getChatId();
         var chat = msg.getChat();
@@ -56,7 +56,7 @@ public class UserServiceImpl {
         User user = new User();
         if(optionalUser.isEmpty()){
 
-
+            user.setId(chatId);
             user.setChatId(chatId);
             user.setFirstName(chat.getFirstName());
             user.setLastName(chat.getLastName());
@@ -81,6 +81,14 @@ public class UserServiceImpl {
         }
 
     }
+
+//    @Transactional(readOnly = true)
+//    public List<User> getMembersInChat(Message message) {
+//        List<String> usernamesInChat = message.getm;
+//        log.info(usernamesInChat.toString());
+//        return userRepository.findAllUsersByUsername(usernamesInChat);
+//    }
+
 
     public List<User> findAll() {
         return userRepository.findAll();

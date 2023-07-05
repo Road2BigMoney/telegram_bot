@@ -1,10 +1,14 @@
 package com.example.demo.botEndpoints;
 
 import com.example.demo.service.CurrencyService;
+import com.example.demo.service.CustomChatService;
 import com.example.demo.service.UserServiceImpl;
 import com.example.demo.config.BotConfig;
 import com.example.demo.model.User;
+import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.PropertySource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -23,43 +27,46 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Component
 @Slf4j
+@AllArgsConstructor
+@RequiredArgsConstructor
 public class TelegramBot extends TelegramLongPollingBot {
 
-    @Autowired
-    private UserServiceImpl userService;
+
+    private final UserServiceImpl userService;
+    private final CustomChatService chatService;
     private final BotConfig botConfig;
 
 
-    static final String HELP_TEXT = "This bot is created to demonstrate Spring capabilities.\n\n" +
-            "You can execute commands from the main menu on the left or by typing a command:\n\n" +
-            "Type /start to see a welcome message\n\n" +
-            "Type /my_data to see data stored about yourself\n\n" +
-            "Type /help to see this message again";
+    static final String HELP_TEXT = "/start\", \"get a welcome message\n\n" +
+            "/my_data\", \"get your data stored\n\n" +
+            "/delete_data\", \"delete my data\n\n" +
+            "/sendUmor \", \"example:/sendUmor username 150 \n\n" +
+            "/rating\", \"Рейтинг юмористов\n\n" ;
 
     static final String YES_BUTTON = "YES_BUTTON";
     static final String NO_BUTTON = "NO_BUTTON";
     static final String EUR_BUTTON = "EUR_CUR";
     static final String USD_BUTTON = "USD_CUR";
     static final String RUB_BUTTON = "RUB_CUR";
+    static final String REGISTRY_BUTTON = "/registry_member";
 
     static final String ERROR_TEXT = "Error occurred: ";
     private List<BotCommand> listofCommands = new ArrayList<>();
 
-
-    public TelegramBot(BotConfig botConfig){
+    @Autowired
+    public TelegramBot(BotConfig botConfig, UserServiceImpl userService, CustomChatService chatService){
         this.botConfig = botConfig;
-
+        this.userService = userService;
+        this.chatService = chatService;
         listofCommands.add(new BotCommand("/start", "get a welcome message"));
         listofCommands.add(new BotCommand("/my_data", "get your data stored"));
         listofCommands.add(new BotCommand("/delete_data", "delete my data"));
         listofCommands.add(new BotCommand("/help", "info how to use this bot"));
-        listofCommands.add(new BotCommand("/sendUmor ", "Отправить юмора пример сообщения: /sendUmor username 150"));
+        listofCommands.add(new BotCommand("/sendUmor ", "example:/sendUmor username 150"));
 
         try {
             this.execute(new SetMyCommands(listofCommands, new BotCommandScopeDefault(), null));
@@ -101,8 +108,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                         break;
 
                     case "/register":
-
-                        register(chatId);
+                        chatService.save(chatId, update.getMessage().getChat().getFirstName());
+                        sendRegisterMembersWindow(chatId);
                         break;
                     case "/delete_data" :
                         userService.deleteById(chatId);
@@ -132,12 +139,22 @@ public class TelegramBot extends TelegramLongPollingBot {
                         }
                         prepareAndSendMessage(chatId, textData);
                         break;
+                    case "/rating" :
+                        List<User> userList = new ArrayList<>(chatService.findById(chatId).getUsers());
+                        userList.sort(Comparator.comparing(User::getUmorPoint));
+                        StringBuffer stringBuffer = new StringBuffer();
+                        int i = 1;
+                        for (User u : userList){
+                            stringBuffer.append(i + ". " + u.getFirstName() + ": " + u.getUmorPoint());
+                        }
+                        prepareAndSendMessage(chatId, stringBuffer.toString());
+                        break;
                     case String s when s.startsWith("/sendUmor"):
                         //registerOrUpdateUser(update.getMessage());
                         try {
                             String senderName = update.getMessage().getFrom().getUserName();
                             String[] messageArray = messageText.split(" ");
-                            String recipient = messageArray[1];
+                            String recipient = messageArray[1].substring(1);
                             long amount = Long.parseLong(messageArray[2]);
                             List<User> participants = userService.sendUmorPoint(senderName, recipient, amount);
                             prepareAndSendMessage(chatId, participants.get(0).getFirstName() + " отправил " + participants.get(1).getFirstName() + " " + amount +" юмора." );
@@ -162,9 +179,11 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             if(callbackData.equals(YES_BUTTON)){
                 text = "You pressed YES button";
+                executeEditMessageText(text,chatId,messageId);
             }
             else if(callbackData.equals(NO_BUTTON)){
                 text = "You pressed NO button";
+                executeEditMessageText(text,chatId,messageId);
             }
 
             if (callbackData.endsWith("_CUR")) {
@@ -176,8 +195,14 @@ public class TelegramBot extends TelegramLongPollingBot {
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
+                executeEditMessageText(text,chatId,messageId);
             }
-            executeEditMessageText(text,chatId,messageId);
+            if (callbackData.equals(REGISTRY_BUTTON)) {
+                text = REGISTRY_BUTTON;
+                User user = userService.findUserByUserName(update.getCallbackQuery().getFrom().getUserName());
+                addUserInGroupChat(user, chatId);
+            }
+
 
         }
     }
@@ -311,6 +336,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setChatId(String.valueOf(chatId));
         message.setText(textToSend);
         executeMessage(message);
+
     }
 
 
@@ -327,5 +353,34 @@ public class TelegramBot extends TelegramLongPollingBot {
             log.error(ERROR_TEXT + e.getMessage());
         }
     }
+    private void sendRegisterMembersWindow(Long chatId) {
+        var sendMessage = new SendMessage();
+        sendMessage.setChatId(String.valueOf(chatId));
+        sendMessage.setText("Регистрация в чате, перед регистрацией в чате зарегистрируйтесь в " + "https://t.me/jabagaduking_bot командой /start");
+        var inlineKeyboardMarkup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
+        List<InlineKeyboardButton> rowInLine = new ArrayList<>();
+        var registryButton = new InlineKeyboardButton();
+        registryButton.setText("Зарегистрироваться");
+        registryButton.setCallbackData("/registry_member");
+        rowInLine.add(registryButton);
+        rowsInLine.add(rowInLine);
+        inlineKeyboardMarkup.setKeyboard(rowsInLine);
+        sendMessage.setReplyMarkup(inlineKeyboardMarkup);
+        executeMessage(sendMessage);
+
+
+    }
+
+    private void addUserInGroupChat(User user, Long chatId) {
+        log.info("Добавляю пользователя в спсок участников");
+        try {
+            chatService.addMember(user, chatId);
+            log.info("Пользователь добавлен");
+        } catch (NoSuchElementException e) {
+            log.error("Ошибка", e);
+        }
+    }
+
 
 }
