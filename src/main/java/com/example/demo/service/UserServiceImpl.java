@@ -21,6 +21,9 @@ public class UserServiceImpl {
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public List<User> sendUmorPoint(String senderName, String recipientName, Long amount) {
+        if(senderName.equals(recipientName)) {
+            throw new RuntimeException("Нельзя отправить юмора себе");
+        }
 
         User sender = userRepository.findUserByUserName(senderName);
         User recipient = userRepository.findUserByUserName(recipientName);
