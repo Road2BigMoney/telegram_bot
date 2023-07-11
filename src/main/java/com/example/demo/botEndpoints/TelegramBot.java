@@ -151,19 +151,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                         break;
                     case String s when s.startsWith("/sendUmor"):
                         //registerOrUpdateUser(update.getMessage());
-                        try {
-                            String senderName = update.getMessage().getFrom().getUserName();
-                            String[] messageArray = messageText.split(" ");
-                            String recipient = messageArray[1].substring(1);
-                            long amount = Long.parseLong(messageArray[2]);
-                            List<User> participants = userService.sendUmorPoint(senderName, recipient, amount);
-                            prepareAndSendMessage(chatId, participants.get(0).getFirstName() + " отправил " + participants.get(1).getFirstName() + " " + amount +" юмора." );
-                            prepareAndSendMessage(participants.get(0).getChatId(), "У вас списалось " + amount + " юмора в пользу " + participants.get(1).getUserName());
-                            prepareAndSendMessage(participants.get(1).getChatId(), "Вам поступило " + amount + " юмора от " + participants.get(0).getUserName());
-                        } catch (RuntimeException e) {
-                            log.error(e.getMessage());
-                            prepareAndSendMessage(chatId, "Не удалось отправить юмор");
-                        }
+                        sendUmor(update);
+
 
                         break;
                     default:
@@ -204,6 +193,25 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
 
 
+        }
+    }
+
+    private void sendUmor(Update update) {
+        String messageText = update.getMessage().getText();
+        String senderName = update.getMessage().getFrom().getUserName();
+        long chatId = update.getMessage().getChatId();
+        try {
+
+            String[] messageArray = messageText.split(" ");
+            String recipient = messageArray[1].substring(1);
+            long amount = Long.parseLong(messageArray[2]);
+            List<User> participants = userService.sendUmorPoint(senderName, recipient, amount);
+            prepareAndSendMessage(chatId, participants.get(0).getFirstName() + " отправил " + participants.get(1).getFirstName() + " " + amount +" юмора." );
+            prepareAndSendMessage(participants.get(0).getChatId(), "У вас списалось " + amount + " юмора в пользу " + participants.get(1).getUserName() + "\n Баланс вашего юмора составляет: " + participants.get(0).getUmorPoint());
+            prepareAndSendMessage(participants.get(1).getChatId(), "Вам поступило " + amount + " юмора от " + participants.get(0).getUserName() + "\n Баланс вашего юмора составляет: " + participants.get(1).getUmorPoint());
+        } catch (RuntimeException e) {
+            log.error(e.getMessage());
+            prepareAndSendMessage(chatId, "Не удалось отправить юмор");
         }
     }
 
